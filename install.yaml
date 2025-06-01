@@ -1,0 +1,13 @@
+dependencies:
+- 'python'
+- 'sqlite3'
+installation:
+  config:
+    dir: $HOME/.config/trecords
+    files:
+    - 'config.py'
+  scripts:
+    dir: $HOME/.local/bin
+    renamed_files:
+    - src: 'cli.py'
+      dest: 'trecords'
