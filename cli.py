@@ -54,7 +54,7 @@ if config.action == 'add':
     table.add_entry(moment=config.moment)
     exit()
 
-values = table.compute_length()
+values = table.compute_length() if config.action != 'edit' else table.values
 if config.filter != 'all':
     values = table.filter_by_date(config.moment, config.filter, values)
 
