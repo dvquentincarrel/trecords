@@ -3,14 +3,21 @@ from orm import Database, Table
 from config import config
 from time_util import Moment, Span
 
-def sec_to_hms(seconds: int) -> str:
+def sec_to_hms(seconds: int, round_seconds=False) -> str:
     seconds = int(seconds)
     if seconds:
         hours, seconds = divmod(seconds, 3600)
         minutes, seconds = divmod(seconds, 60)
     else:
         hours = minutes = seconds = 0
-    return f"{hours:02}:{minutes:02}:{seconds:02}"
+
+    if round_seconds:
+        if seconds >= 30:
+            minutes += 1
+            seconds = 0
+        return f"{hours:02}:{minutes:02}"
+    else:
+        return f"{hours:02}:{minutes:02}:{seconds:02}"
 
 class RecordTable(Table):
 
