@@ -16,6 +16,7 @@ now = Moment.now()
 CONFIG_FILE="config.py"
 DEFAULT_FILTER="day"
 DEFAULT_ACTION="add"
+VERSION="0.1"
 parser = argparse.ArgumentParser(
     formatter_class=argparse.RawDescriptionHelpFormatter,
     add_help=False,
@@ -33,6 +34,7 @@ parser.add_argument('-h', '--help', action="help")
 parser.add_argument('-f', '--filter', choices=['year', 'month', 'week', 'day', 'hour', 'all'], default=DEFAULT_FILTER, help=f"Which entries to consider. Those of the current {DEFAULT_FILTER} by default.")
 parser.add_argument('-d', '--database', help=f"Where to find the database file. Gotten from config, by default")
 parser.add_argument('-m', '--moment', help=f"YYYY-MM-DD moment to consider. {now} by default")
+parser.add_argument('-v', '--version', action="version", version=f"trecords {VERSION}")
 parser.add_argument('action', nargs='?', choices=['add', 'edit', 'see', 'sum', 'debug'], default=DEFAULT_ACTION, help=f"Action to execute over the lines corresponding to the filter. {DEFAULT_ACTION} by default.")
 parser.parse_args(args, config)
 

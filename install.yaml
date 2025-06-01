@@ -1,6 +1,8 @@
 dependencies:
 - 'python'
 - 'sqlite3'
+pre:
+- './install.bash'
 installation:
   config:
     dir: $HOME/.config/trecords
