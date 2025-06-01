@@ -1,6 +1,10 @@
 import sqlite3
 from collections.abc import Iterable
 from typing import Any, Optional
+import subprocess
+import json
+import os
+import tempfile
 
 class Table:
     def __init__(self, name: str, parent: "Database"):
@@ -10,13 +14,13 @@ class Table:
         """
         self.name = name
         self.enqueued: Iterable[Iterable[Any]] = []
-        self.values = []
+        self.values: dict[int, tuple[Any]] = {}
         self.parent = parent
         self.connection = parent.connection
 
         cur = self.connection.cursor()
         cur.execute(f"PRAGMA table_info({self.name})")
-        self.columns: list[str] = [row[1] for row in cur.fetchall()]
+        self.columns: list[str]  = [row[1] for row in cur.fetchall()]
         self.refresh_vals(cur)
         cur.close()
 
@@ -34,8 +38,8 @@ class Table:
         if not cur:
             cur = self.connection.cursor()
 
-        cur.execute(f"SELECT * FROM {self.name}")
-        self.values = cur.fetchall()
+        cur.execute(f"SELECT rowid, * FROM {self.name}")
+        self.values = {row[0]: row[1:] for row in cur.fetchall()}
         self._post_refresh()
         if close_cur:
             cur.close()
@@ -48,6 +52,43 @@ class Table:
             row = [row]
 
         self.enqueued.append(row)
+    def edit(self, filter=None):
+        """Edits rows with an external editor"""
+        if filter is None:
+            values = tuple(self.values.values())
+        data = []
+        for id, row in self.values.items():
+            json_row = {'rowid': id}
+            json_row |= {self.columns[i]: col_val for i, col_val in enumerate(row)}
+            data.append(json_row)
+
+        tmp_file = tempfile.mktemp(suffix=".json")
+        with open(tmp_file, 'w') as file:
+            json.dump(data, file, indent=2)
+
+        subprocess.run([os.getenv('EDITOR', 'vim'), tmp_file])
+        with open(tmp_file, 'r') as file:
+            new_data = json.load(file)
+        os.remove(tmp_file)
+
+        # Skip updating rows if no modifications were made
+        if data == new_data:
+            return None
+
+        new_rows = [tuple(row.values()) for row in new_data]
+        col_names = '"{}"'.format(
+            '", "'.join(['rowid', *self.columns])
+        )
+        placeholder = ','.join(['?'] * (1 + len(self.columns)))
+        cur = self.connection.cursor()
+        cur.executemany(
+            f"""
+            INSERT OR REPLACE
+                INTO {self.name} ({col_names})
+            VALUES({placeholder})""",
+            new_rows)
+        self.connection.commit()
+        cur.close()
 
     def flush(self):
         """Flushes write of enqueued rows. Refreshes all of the object's known rows"""
