@@ -1,7 +1,10 @@
 #!/bin/python
 import os
 import sys
-os.chdir(os.readlink(sys.argv[0]).rpartition('/')[0])
+try:
+    os.chdir(os.readlink(sys.argv[0]).rpartition('/')[0])
+except OSError:
+    pass
 
 import atexit
 from main import RecordTable, sec_to_hms
