@@ -6,8 +6,10 @@ Span: TypeAlias = Literal['year', 'month', 'week', 'day', 'hour', 'minute', 'sec
 class Moment(datetime.datetime):
 
     @classmethod
-    def from_row(cls, row: str) -> "Moment":
-        """Build Moment from YYYY-mm-dd HH:mm:ss string (returned by the db)"""
+    def from_string(cls, row: str) -> "Moment":
+        """Build Moment from YYYY-mm-dd (HH:mm:ss) string (returned by the db)"""
+        if len(row) == 10:
+            row = row + " 00:00:00"
         return cls.strptime(row, "%Y-%m-%d %H:%M:%S")
 
     def __str__(self) -> str:

@@ -86,7 +86,7 @@ class RecordTable(Table):
         next_moment = Moment.now()
         values = sorted(list(self.values.values()), key=lambda x: x[0])
         for entry in values[::-1]:
-            cur_moment = Moment.from_row(entry[0])
+            cur_moment = Moment.from_string(entry[0])
             if entry[1] == 'stop':
                 next_moment = cur_moment
             time = next_moment - cur_moment

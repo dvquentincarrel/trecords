@@ -8,62 +8,61 @@ except OSError:
 
 import atexit
 from main import RecordTable, sec_to_hms
-from config import config
 from time_util import Moment
 from orm import Database
+import argparse
 
 now = Moment.now()
+CONFIG_FILE="config.py"
+DEFAULT_FILTER="day"
+DEFAULT_ACTION="add"
+parser = argparse.ArgumentParser(
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+    add_help=False,
+)
+parser.add_argument('-c', '--config-file', default=CONFIG_FILE, help=f"Path to the confilg file. Defaults to {CONFIG_FILE}")
+config, args = parser.parse_known_args()
+try:
+    from config import config as tmp_cfg
+    vars(config).update(tmp_cfg)
+    err = None
+except ModuleNotFoundError:
+    err = f'Config file "{config.config_file}" does not exist'
 
-if __name__ == '__main__':
-    db = Database(config['database'], RecordTable)
-    table: "RecordTable" = db.tables['records']
-    atexit.register(lambda: db.connection.close())
+parser.add_argument('-h', '--help', action="help")
+parser.add_argument('-f', '--filter', choices=['year', 'month', 'week', 'day', 'hour', 'all'], default=DEFAULT_FILTER, help=f"Which entries to consider. Those of the current {DEFAULT_FILTER} by default.")
+parser.add_argument('-d', '--database', help=f"Where to find the database file. Gotten from config, by default")
+parser.add_argument('-m', '--moment', help=f"YYYY-MM-DD moment to consider. {now} by default")
+parser.add_argument('action', nargs='?', choices=['add', 'edit', 'see', 'sum', 'debug'], default=DEFAULT_ACTION, help=f"Action to execute over the lines corresponding to the filter. {DEFAULT_ACTION} by default.")
+parser.parse_args(args, config)
 
-    ans = input('\n'.join([
-        "Choose an option by its number:",
-        "  1 - Add entry",
-        "  2 - Add entry before",
-        "  3 - Edit entries",
-        "  4 - See daily entries",
-        "  5 - See weekly entries",
-        "  6 - See monthly entries",
-        "  7 - See yearly entries",
-        "  8 - See all entries",
-        "  9 - See time per entry today",
-        "  99 - debug",
-        "",
-    ]))
-    match ans:
-        case '1':
-            table.add_entry()
-            exit()
-        case '2':
-            ans = input("Negative minutes offset: ")
-            moment = now._offset('minute', -float(ans))
-            table.add_entry(moment=moment)
-            exit()
-        case '3':
-            table.edit()
-            exit()
-        case '4':
-            entries = table.get_current('day')
-        case '5':
-            entries = table.get_current('week')
-        case '6':
-            entries = table.get_current('month')
-        case '7':
-            entries = table.get_current('year')
-        case '8':
-            entries = table.compute_length()
-        case '9':
-            data = {key:sum(row[-1] for row in rows) for key,rows in table.group_by_activity(span='day', with_length=True).items()}
-            for k,v in data.items():
-                print(f"{k}: {sec_to_hms(v)}")
-            exit(0)
-        case '99':
-            breakpoint()
-            exit(0)
-        case _:
-            exit(1)
-    for (time, act, comm, *other) in entries:
-        print(f"{time}: ({act}) ⇒ {comm} {other}")
+if err:
+    raise ValueError(err)
+
+if config.moment:
+    config.moment = Moment.from_string(config.moment)
+else:
+    config.moment = now
+
+db = Database(config.database, RecordTable)
+table: "RecordTable" = db.tables['records']
+atexit.register(lambda: db.connection.close())
+
+if config.action == 'add':
+    table.add_entry(moment=config.moment)
+    exit()
+
+values = table.compute_length()
+if config.filter != 'all':
+    values = table.filter_by_date(config.moment, config.filter, values)
+
+if config.action == 'see':
+    for (time, act, comm, duration) in values:
+        print(f"\x1b[1m{time}\x1b[m: [{sec_to_hms(duration)}] ({act}) ⇒ {comm}")
+elif config.action == 'sum':
+    span = config.filter if config.filter != 'all' else None
+    sums = table.time_by_activity(span=span, moment=config.moment)
+    for activity, time in sums.items():
+        print(f"{activity}: {sec_to_hms(time)}")
+elif config.action == 'debug':
+    breakpoint()
