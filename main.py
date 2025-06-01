@@ -72,6 +72,10 @@ class RecordTable(Table):
 
         return dict(rows_map)
 
+    def time_by_activity(self, span=None, moment=None, exclude_stop=True):
+        aggregate = self.group_by_activity(span=span, moment=moment, with_length=True, exclude_stop=exclude_stop)
+        return {activity: sum(row[-1] for row in rows) for activity, rows in aggregate.items()}
+
     def compute_length(self) -> list:
         """Compute time between each value, and returns a list of all values with
         their length appended. The values are assumed to be sorted.
