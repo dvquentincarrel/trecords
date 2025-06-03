@@ -1,7 +1,10 @@
 from collections import defaultdict
-from orm import Database, Table
+from orm import Database, FancyRow, Table
 from config import config
 from time_util import Moment, Span
+
+def filter(*args, _filter=filter, **kwargs):
+    return list(_filter(*args, **kwargs))
 
 def sec_to_hms(seconds: int, round_seconds=False) -> str:
     seconds = int(seconds)
@@ -22,9 +25,8 @@ def sec_to_hms(seconds: int, round_seconds=False) -> str:
 class RecordTable(Table):
 
     def _post_refresh(self):
-        # Order by time
-        #self.values.sort(key=lambda x: x[0])
-        pass
+        if self.default_sort:
+            self.values.sort(key=lambda x: x[self.default_sort])
 
     def add_entry(
         self,
@@ -44,13 +46,13 @@ class RecordTable(Table):
         self.flush()
         # self.parent['activity'].refresh_vals()
 
-    def filter_by_date(self, moment: Moment, span: Span, values: list[tuple] | None = None) -> list[list]:
+    def filter_by_date(self, moment: Moment, span: Span, values: list[dict] | None = None) -> list[dict]:
         """Returns entries encompassing the given span around the given moment"""
         if values is None:
-            values = tuple(self.values.values())
+            values = self.values
 
         start, end = map(lambda x: str(x), moment.range(span))
-        return list(filter(lambda val: start <= val[0] < end , values))
+        return filter(lambda val: start <= val['moment'] < end , values)
 
 
     def get_current(self, span: Span) -> list[list]:
@@ -65,25 +67,25 @@ class RecordTable(Table):
         :param moment: Moment around which to apply the timespan. Now if None
         :param with_length: Compute length of the rows beforehand
         """
-        values = self.compute_length() if with_length else tuple(self.values.values())
+        values = self.compute_length() if with_length else self.values
         if moment is None:
             moment = Moment.now()
         entries = self.filter_by_date(moment, span, values) if span else values
 
         rows_map = defaultdict(list)
         for row in entries:
-            rows_map[row[1]].append(row)
+            rows_map[row['activity']].append(row)
 
         if exclude_stop:
             rows_map.pop('stop', None)
 
         return dict(rows_map)
 
-    def time_by_activity(self, span=None, moment=None, exclude_stop=True):
+    def time_by_activity(self, span=None, moment=None, exclude_stop=True) -> dict:
         aggregate = self.group_by_activity(span=span, moment=moment, with_length=True, exclude_stop=exclude_stop)
         return {activity: sum(row[-1] for row in rows) for activity, rows in aggregate.items()}
 
-    def compute_length(self) -> list:
+    def compute_length(self) -> list[FancyRow]:
         """Compute time between each value, and returns a list of all values with
         their length appended. The values are assumed to be sorted.
 
@@ -91,13 +93,14 @@ class RecordTable(Table):
         """
         entries = []
         next_moment = Moment.now()
-        values = sorted(list(self.values.values()), key=lambda x: x[0])
+        values = self.values
         for entry in values[::-1]:
-            cur_moment = Moment.from_string(entry[0])
-            if entry[1] == 'stop':
+            cur_moment = Moment.from_string(entry['moment'])
+            if entry['activity'] == 'stop':
                 next_moment = cur_moment
             time = next_moment - cur_moment
-            entries.append([*entry, time.total_seconds()])
+            entry['length'] = time.total_seconds()
+            entries.append(entry)
             next_moment = cur_moment
 
         entries.reverse()

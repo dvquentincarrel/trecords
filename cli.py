@@ -48,6 +48,8 @@ else:
 
 db = Database(config.database, RecordTable)
 table: "RecordTable" = db.tables['records']
+table.default_sort = 'moment'
+table._post_refresh()
 atexit.register(lambda: db.connection.close())
 
 if config.action == 'add':
@@ -59,12 +61,14 @@ if config.filter != 'all':
     values = table.filter_by_date(config.moment, config.filter, values)
 
 if config.action == 'see':
-    for (time, act, comm, duration) in values:
-        print(f"\x1b[1m{time}\x1b[m: [{sec_to_hms(duration)}] ({act}) ⇒ {comm}")
+    for value in values:
+        print(f"\x1b[1m{value['moment']}\x1b[m: [{sec_to_hms(value['length'])}] ({value['activity']}) ⇒ {value['comment']}")
 elif config.action == 'sum':
     span = config.filter if config.filter != 'all' else None
     sums = table.time_by_activity(span=span, moment=config.moment)
     for activity, time in sums.items():
         print(f"{activity}: {sec_to_hms(time)}")
+elif config.action == 'edit':
+    table.edit(values)
 elif config.action == 'debug':
     breakpoint()

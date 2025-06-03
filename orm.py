@@ -6,17 +6,30 @@ import json
 import os
 import tempfile
 
+class FancyRow(dict):
+    def __init__(self, cursor: sqlite3.Cursor, row: tuple):
+        columns = [col[0] for col in cursor.description]
+        for key, val in zip(columns, row):
+            self[key] = val
+
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return self.get(tuple(self.keys())[key])
+        else:
+            return self.get(key)
+
 class Table:
-    def __init__(self, name: str, parent: "Database"):
+    def __init__(self, name: str, parent: "Database", default_sort=None):
         """
         :param name: Table name
         :param connection: Database connection
         """
         self.name = name
         self.enqueued: Iterable[Iterable[Any]] = []
-        self.values: dict[int, tuple[Any]] = {}
+        self.values: dict[str, Any] = {}
         self.parent = parent
         self.connection = parent.connection
+        self.default_sort = default_sort
 
         cur = self.connection.cursor()
         cur.execute(f"PRAGMA table_info({self.name})")
@@ -39,7 +52,7 @@ class Table:
             cur = self.connection.cursor()
 
         cur.execute(f"SELECT rowid, * FROM {self.name}")
-        self.values = {row[0]: row[1:] for row in cur.fetchall()}
+        self.values = cur.fetchall()
         self._post_refresh()
         if close_cur:
             cur.close()
@@ -52,19 +65,13 @@ class Table:
             row = [row]
 
         self.enqueued.append(row)
-    def edit(self, filter=None):
-        """Edits rows with an external editor"""
-        if filter is None:
-            values = tuple(self.values.values())
-        data = []
-        for id, row in self.values.items():
-            json_row = {'rowid': id}
-            json_row |= {self.columns[i]: col_val for i, col_val in enumerate(row)}
-            data.append(json_row)
 
+    def edit(self, values=None):
+        """Edits rows with an external editor"""
+        values = values or self.values
         tmp_file = tempfile.mktemp(suffix=".json")
         with open(tmp_file, 'w') as file:
-            json.dump(data, file, indent=2)
+            json.dump(values, file, indent=2)
 
         subprocess.run([os.getenv('EDITOR', 'vim'), tmp_file])
         with open(tmp_file, 'r') as file:
@@ -72,7 +79,8 @@ class Table:
         os.remove(tmp_file)
 
         # Skip updating rows if no modifications were made
-        if data == new_data:
+        if values == new_data:
+            print("Values unchanged")
             return None
 
         new_rows = [tuple(row.values()) for row in new_data]
@@ -81,12 +89,11 @@ class Table:
         )
         placeholder = ','.join(['?'] * (1 + len(self.columns)))
         cur = self.connection.cursor()
-        cur.executemany(
-            f"""
+        query = f"""
             INSERT OR REPLACE
                 INTO {self.name} ({col_names})
-            VALUES({placeholder})""",
-            new_rows)
+            VALUES({placeholder})"""
+        cur.executemany(query, new_rows)
         self.connection.commit()
         cur.close()
 
@@ -102,9 +109,10 @@ class Table:
 class Database:
     def __init__(self, db_file: str, table_obj = Table):
         self.connection: sqlite3.Connection = sqlite3.Connection(db_file)
+        self.connection.row_factory = FancyRow
         self.tables: dict[str, "Table"] = {}
 
-        cond = lambda row: row[2] == 'table' and not row[1].startswith('sqlite')
+        cond = lambda row: row['type'] == 'table' and not row['name'].startswith('sqlite')
         cur = self.connection.cursor()
         cur.execute("PRAGMA table_list")
         _schema_rows = filter(cond, cur.fetchall())
