@@ -6,6 +6,7 @@ try:
 except OSError:
     pass
 
+import json
 import atexit
 from main import RecordTable, sec_to_hms
 from time_util import Moment
@@ -16,7 +17,7 @@ now = Moment.now()
 CONFIG_FILE="config.py"
 DEFAULT_FILTER="day"
 DEFAULT_ACTION="add"
-VERSION="0.1"
+VERSION="0.2"
 parser = argparse.ArgumentParser(
     formatter_class=argparse.RawDescriptionHelpFormatter,
     add_help=False,
@@ -35,6 +36,7 @@ parser.add_argument('-f', '--filter', choices=['year', 'month', 'week', 'day', '
 parser.add_argument('-d', '--database', help=f"Where to find the database file. Gotten from config, by default")
 parser.add_argument('-m', '--moment', help=f"YYYY-MM-DD moment to consider. {now} by default")
 parser.add_argument('-v', '--version', action="version", version=f"trecords {VERSION}")
+parser.add_argument('-j', '--json', action="store_true", help="Output data as json")
 parser.add_argument('action', nargs='?', choices=['add', 'edit', 'see', 'sum', 'debug'], default=DEFAULT_ACTION, help=f"Action to execute over the lines corresponding to the filter. {DEFAULT_ACTION} by default.")
 parser.parse_args(args, config)
 
@@ -61,13 +63,22 @@ if config.filter != 'all':
     values = table.filter_by_date(config.moment, config.filter, values)
 
 if config.action == 'see':
-    for value in values:
-        print(f"\x1b[1m{value['moment']}\x1b[m: [{sec_to_hms(value['length'])}] ({value['activity']}) ⇒ {value['comment']}")
+    if config.json:
+        print(json.dumps(values, indent=2))
+    else:
+        for value in values:
+            print(
+                f"\x1b[1m{value['moment']}\x1b[m: [{sec_to_hms(value['length'])}] ({value['activity']})"
+                + (f" ⇒ {value['comment']}" if value['comment'] else '')
+            )
 elif config.action == 'sum':
     span = config.filter if config.filter != 'all' else None
     sums = table.time_by_activity(span=span, moment=config.moment)
-    for activity, time in sums.items():
-        print(f"{activity}: {sec_to_hms(time)}")
+    if config.json:
+        print(json.dumps(sums, indent=2))
+    else:
+        for activity, time in sums.items():
+            print(f"{activity}: {sec_to_hms(time)}")
 elif config.action == 'edit':
     table.edit(values)
 elif config.action == 'debug':
