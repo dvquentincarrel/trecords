@@ -1,16 +1,37 @@
 import datetime
 import dateutil
+import re
 from typing import Literal, TypeAlias
 
 Span: TypeAlias = Literal['year', 'month', 'week', 'day', 'hour', 'minute', 'second']
+# Regex of supported formats, by their name and with their complement for a full date
+MOMENT_REGEXES: dict[str, tuple[re.Pattern, str]] = dict(
+    full=(re.compile(r'\d{4}-\d{2}-\d{2}[ _]\d{2}:\d{2}:\d{2}'),
+          lambda moment: moment),
+    date=(re.compile(r'\d{4}-\d{2}-\d{2}'),
+          lambda moment: f'{moment} 00:00:00'),
+    date_short=(re.compile(r'\d{2}-\d{2}'),
+                lambda moment: f'{datetime.date.today().year}-{moment} 00:00:00'),
+    hour=(re.compile(r'\d{2}:\d{2}:\d{2}'),
+          lambda moment: f'{datetime.date.today().strftime('%F')} {moment}'),
+    hour_short=(re.compile(r'\d{2}:\d{2}'),
+                lambda moment: f'{datetime.date.today().strftime('%F')} {moment}:00'),
+)
 class Moment(datetime.datetime):
 
     @classmethod
     def from_string(cls, row: str) -> "Moment":
-        """Build Moment from YYYY-mm-dd (HH:mm:ss) string (returned by the db)"""
-        if len(row) == 10:
-            row = row + " 00:00:00"
-        return cls.strptime(row, "%Y-%m-%d %H:%M:%S")
+        """Build Moment from a string, as returned by the db or given as a flag.
+        Supported formats:
+        - YYYY-MM-DD hh:mm:ss
+        - YYYY-MM-DD (implies 00:00:00)
+        - MM-DD (implies current year and 00:00:00)
+        - hh:mm:dd (implies today)
+        - hh:mm (implies today, 00 seconds)
+        """
+        for type, (pattern, builder) in MOMENT_REGEXES.items():
+            if pattern.match(row):
+                return cls.strptime(builder(row), "%Y-%m-%d %H:%M:%S")
 
     def __str__(self) -> str:
         return self.strftime("%F %T")
