@@ -74,6 +74,8 @@ if config.action == 'see':
 elif config.action == 'sum':
     span = config.filter if config.filter != 'all' else None
     sums = table.time_by_activity(span=span, moment=config.moment)
+    moments = config.moment.range(config.filter if config.filter != 'all' else 'day')
+    print(f"from \x1b[1m{moments[0]}\x1b[m to \x1b[1m{moments[1]}\x1b[m\n", file=sys.stderr)
     if config.json:
         print(json.dumps(sums, indent=2))
     else:

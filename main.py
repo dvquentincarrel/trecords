@@ -1,4 +1,5 @@
 from collections import defaultdict
+from typing import Literal
 from orm import Database, FancyRow, Table
 from config import config
 from time_util import Moment, Span
@@ -82,8 +83,18 @@ class RecordTable(Table):
         return dict(rows_map)
 
     def time_by_activity(self, span=None, moment=None, exclude_stop=True) -> dict:
+        """Compute total time spent on an activity, for a filtered subset of all
+        values, according to span and moment.
+        :param span: Span of values to consider
+        :param moment: Moment around which to consider the span
+        :param exclude_stop: Whether to include the "stop" activity or not
+
+        :return: Mapping of activities and the time spent on them, ordered
+        by least to most time spent
+        """
         aggregate = self.group_by_activity(span=span, moment=moment, with_length=True, exclude_stop=exclude_stop)
-        return {activity: sum(row[-1] for row in rows) for activity, rows in aggregate.items()}
+        sorted_sums = sorted([(activity, sum(row[-1] for row in rows)) for activity, rows in aggregate.items()], key=lambda x: x[1])
+        return {activity: sum for activity, sum in sorted_sums}
 
     def compute_length(self) -> list[FancyRow]:
         """Compute time between each value, and returns a list of all values with
