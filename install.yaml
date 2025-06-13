@@ -13,3 +13,8 @@ installation:
     renamed_files:
     - src: 'cli.py'
       dest: 'trecords'
+  fish-completions:
+    dir: $HOME/.config/fish/completions
+    files:
+    - trecords.fish
+

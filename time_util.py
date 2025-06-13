@@ -1,7 +1,7 @@
 import datetime
-import dateutil
+import dateutil.relativedelta
 import re
-from typing import Literal, TypeAlias
+from typing import Literal, TypeAlias, Optional
 
 Span: TypeAlias = Literal['year', 'month', 'week', 'day', 'hour', 'minute', 'second']
 # Regex of supported formats, by their name and with their complement for a full date
@@ -13,14 +13,43 @@ MOMENT_REGEXES: dict[str, tuple[re.Pattern, str]] = dict(
     date_short=(re.compile(r'\d{2}-\d{2}'),
                 lambda moment: f'{datetime.date.today().year}-{moment} 00:00:00'),
     hour=(re.compile(r'\d{2}:\d{2}:\d{2}'),
-          lambda moment: f'{datetime.date.today().strftime('%F')} {moment}'),
+          lambda moment: f'{datetime.date.today().strftime("%F")} {moment}'),
     hour_short=(re.compile(r'\d{2}:\d{2}'),
-                lambda moment: f'{datetime.date.today().strftime('%F')} {moment}:00'),
+                lambda moment: f'{datetime.date.today().strftime("%F")} {moment}:00'),
     hour_offset=(re.compile(r'-\d{2}:\d{2}'),
                  lambda moment: (datetime.datetime.now() - dateutil.relativedelta.relativedelta(hours=int(moment[1:3]), minutes=int(moment[4:]))).strftime("%F %T")),
     minute_offset=(re.compile(r'-\d{1,2}'),
                    lambda moment: (datetime.datetime.now() - dateutil.relativedelta.relativedelta(minutes=int(moment[1:]))).strftime("%F %T")),
 )
+
+def itermonthdates(
+    date: datetime.date,
+    end: Optional[datetime.date] = None
+) -> list[datetime.date]:
+    """Get list of all days in the month of the given date
+    
+    :param: date: date for which the month is considered
+    :param: end: optional end date. End of the month by default
+    :return: Iterator to get all the days of the month (up to the given end point)
+    """
+    first = datetime.datetime(year=date.year, month=date.month, day=1)
+    if not end:
+        end = datetime.datetime(year=date.year, month=date.month+1, day=1) - datetime.timedelta(days=1)
+    for day in range(first.day, end.day+1):
+        yield datetime.datetime(year=date.year, month=date.month, day=day).date()
+
+def monthdates(
+    date: datetime.date,
+    end: Optional[datetime.date] = None
+) -> list[datetime.date]:
+    """Get list of all days in the month of the given date
+    
+    :param: date: date for which the month is considered
+    :param: end: optional end date. End of the month by default
+    :return: All the days of the month (up to the given end point)
+    """
+    return [x for x in itermonthdates(date, end)]
+
 class Moment(datetime.datetime):
 
     @classmethod
@@ -38,6 +67,18 @@ class Moment(datetime.datetime):
         for type, (pattern, builder) in MOMENT_REGEXES.items():
             if pattern.match(row):
                 return cls.strptime(builder(row), "%Y-%m-%d %H:%M:%S")
+
+    def __lt__(self, other) -> bool:
+        if isinstance(other, str):
+            return str(self) < other
+        else:
+            return super().__lt__(other)
+
+    def __gt__(self, other) -> bool:
+        if isinstance(other, str):
+            return str(self) > other
+        else:
+            return super().__gt__(other)
 
     def __str__(self) -> str:
         return self.strftime("%F %T")
@@ -94,3 +135,12 @@ class Moment(datetime.datetime):
         start = self + dateutil.relativedelta.relativedelta(**reset_kwargs)
         end = start.next(span)
         return (start, end)
+
+
+if __name__ == '__main__':
+    moment = Moment.from_string('2025-02-08')
+    month_span = monthdates(moment)
+    print('moment:',moment)
+    print('month dates:')
+    for x in month_span:
+        print('-',x)
