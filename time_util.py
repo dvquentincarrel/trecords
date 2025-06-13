@@ -16,6 +16,10 @@ MOMENT_REGEXES: dict[str, tuple[re.Pattern, str]] = dict(
           lambda moment: f'{datetime.date.today().strftime('%F')} {moment}'),
     hour_short=(re.compile(r'\d{2}:\d{2}'),
                 lambda moment: f'{datetime.date.today().strftime('%F')} {moment}:00'),
+    hour_offset=(re.compile(r'-\d{2}:\d{2}'),
+                 lambda moment: (datetime.datetime.now() - dateutil.relativedelta.relativedelta(hours=int(moment[1:3]), minutes=int(moment[4:]))).strftime("%F %T")),
+    minute_offset=(re.compile(r'-\d{1,2}'),
+                   lambda moment: (datetime.datetime.now() - dateutil.relativedelta.relativedelta(minutes=int(moment[1:]))).strftime("%F %T")),
 )
 class Moment(datetime.datetime):
 
@@ -26,8 +30,10 @@ class Moment(datetime.datetime):
         - YYYY-MM-DD hh:mm:ss
         - YYYY-MM-DD (implies 00:00:00)
         - MM-DD (implies current year and 00:00:00)
-        - hh:mm:dd (implies today)
+        - hh:mm:ss (implies today)
         - hh:mm (implies today, 00 seconds)
+        - -hh:mm (implies today, 00 seconds, offset from now)
+        - -mm (implies today, offset from now)
         """
         for type, (pattern, builder) in MOMENT_REGEXES.items():
             if pattern.match(row):

@@ -1,3 +1,8 @@
+# 0.4
+- moment cli flag handles new formats:
+  - -hh:mm (implies today, 00 seconds, offset from now)
+  - -mm (implies today, offset from now)
+- Time sum is sorted
 # 0.3
 - moment cli flag handles new formats:
   - YYYY-MM-DD (implies 00:00:00)
