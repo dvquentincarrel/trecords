@@ -37,7 +37,7 @@ parser.add_argument('-d', '--database', help=f"Where to find the database file. 
 parser.add_argument('-m', '--moment', help=f"YYYY-MM-DD hh:mm:ss moment to consider. '{now}' (now) by default. Can take shorter formats too: ((YYYY-)MM-DD) (hh:mm(:ss))")
 parser.add_argument('-v', '--version', action="version", version=f"trecords {VERSION}")
 parser.add_argument('-j', '--json', action="store_true", help="Output data as json")
-parser.add_argument('action', nargs='?', choices=['add', 'edit', 'see', 'sum', 'debug'], default=DEFAULT_ACTION, help=f"Action to execute over the lines corresponding to the filter. {DEFAULT_ACTION} by default.")
+parser.add_argument('action', nargs='?', choices=['add', 'edit', 'see', 'sum', 'debug', 'report'], default=DEFAULT_ACTION, help=f"Action to execute over the lines corresponding to the filter. {DEFAULT_ACTION} by default.")
 parser.parse_args(args, config)
 
 if err:
@@ -73,7 +73,7 @@ if config.action == 'see':
             )
 elif config.action == 'sum':
     span = config.filter if config.filter != 'all' else None
-    sums = table.time_by_activity(span=span, moment=config.moment)
+    sums = table.time_by_activity(span=span, moment=config.moment, activities_to_exclude=config.activities_to_exclude)
     sums['grand total'] = sum(val for val in sums.values())
     moments = config.moment.range(config.filter if config.filter != 'all' else 'day')
     print(f"from \x1b[1m{moments[0]}\x1b[m to \x1b[1m{moments[1]}\x1b[m\n", file=sys.stderr)
@@ -82,6 +82,15 @@ elif config.action == 'sum':
     else:
         for activity, time in sums.items():
             print(f"{activity}: {sec_to_hms(time)}")
+elif config.action == 'report':
+    import cement
+    days = cement.itermonthdates(config.moment, config.moment)
+    expected_times = cement.expected_time(days, config.expectation_model)
+    done_times = cement.time_by_date(table.compute_length())
+    current_advance = 0
+    for date, time in expected_times.items():
+        current_advance += done_times.get(date, 0) - time
+    breakpoint()
 elif config.action == 'edit':
     table.edit(values)
 elif config.action == 'debug':
