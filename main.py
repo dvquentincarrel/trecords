@@ -82,7 +82,7 @@ class RecordTable(Table):
 
         return dict(rows_map)
 
-    def time_by_activity(self, span=None, moment=None, exclude_stop=True) -> dict:
+    def time_by_activity(self, span=None, moment=None, exclude_stop=True) -> dict[str, int]:
         """Compute total time spent on an activity, for a filtered subset of all
         values, according to span and moment.
         :param span: Span of values to consider
