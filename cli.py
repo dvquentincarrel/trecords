@@ -101,8 +101,10 @@ elif config.action == 'report':
         wrapper = lambda code, msg: f"\x1b[{code}m{sec_to_hms(msg, with_sign=False)}\x1b[m"
         print(f"{data.date}: {wrapper(cur_code, data.current)} / {wrapper(sum_code, data.sum)}")
 
+    pause_taken_today = table.time_by_activity(span='day', moment=config.moment).get('pause', 0)
+    remaining_pause = max(0, config.expectation_model.pause - pause_taken_today)
     print()
-    print(f"ending time: {now._offset('second', abs(data.sum)).strftime('%T')}")
+    print(f"ending time: {now._offset('second', abs(data.sum - remaining_pause)).strftime('%T')}")
 
 elif config.action == 'edit':
     table.edit(values)
