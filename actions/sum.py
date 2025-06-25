@@ -18,5 +18,5 @@ def main(table: RecordTable, config: Config):
         for activity, time in sums.items():
             print(f"{activity}: {sec_to_hms(time)}")
             if config.explode:
-                for entry in detail.get(activity, []):
+                for entry in filter(lambda x: x['comment'], detail.get(activity, [])):
                     print(f"  \x1b[90m[{sec_to_hms(entry['length'])}]\x1b[m {entry['comment']}")
