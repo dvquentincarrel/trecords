@@ -1,4 +1,4 @@
-#!/bin/python3
+#!/bin/env python3
 import os
 import sys
 try:
@@ -12,6 +12,7 @@ from main import RecordTable, sec_to_hms
 from time_util import Moment
 from orm import Database
 import argparse
+import actions
 
 now = Moment.now()
 CONFIG_FILE="config.py"
@@ -25,7 +26,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument('-c', '--config-file', default=CONFIG_FILE, help=f"Path to the confilg file. Defaults to {CONFIG_FILE}")
 config, args = parser.parse_known_args()
 try:
-    from config import config as tmp_cfg
+    from config import config as tmp_cfg, Config
     vars(config).update(tmp_cfg)
     err = None
 except ModuleNotFoundError:
@@ -44,6 +45,7 @@ parser.parse_args(args, config)
 if err:
     raise ValueError(err)
 
+config: Config
 if config.moment:
     config.moment = Moment.from_string(config.moment)
 else:
@@ -55,58 +57,21 @@ table.default_sort = 'moment'
 table._post_refresh()
 atexit.register(lambda: db.connection.close())
 
-if config.action == 'add':
-    table.add_entry(moment=config.moment)
-    exit()
-
 values = table.compute_length() if config.action != 'edit' else table.values
 if config.filter != 'all':
     values = table.filter_by_date(config.moment, config.filter, values)
 
-if config.action == 'see':
-    if config.json:
-        print(json.dumps(values, indent=2))
-    else:
-        for value in values:
-            print(
-                f"\x1b[1m{value['moment']}\x1b[m: [{sec_to_hms(value['length'])}] ({value['activity']})"
-                + (f" ⇒ {value['comment']}" if value['comment'] else '')
-            )
-elif config.action == 'sum':
-    span = config.filter if config.filter != 'all' else None
-    if config.explode:
-        detail = table.group_by_activity(span=span, moment=config.moment, with_length=True)
-    sums = table.time_by_activity(span=span, moment=config.moment, activities_to_exclude=['stop'])
-    sums['grand total'] = sum(val for key, val in sums.items() if key != 'pause')
-    moments = config.moment.range(config.filter if config.filter != 'all' else 'day')
-    print(f"from \x1b[1m{moments[0]}\x1b[m to \x1b[1m{moments[1]}\x1b[m\n", file=sys.stderr)
-    if config.json:
-        print(json.dumps(sums, indent=2))
-    else:
-        for activity, time in sums.items():
-            print(f"{activity}: {sec_to_hms(time)}")
-            if config.explode:
-                for entry in detail.get(activity, []):
-                    print(f"  \x1b[90m[{sec_to_hms(entry['length'])}]\x1b[m {entry['comment']}")
-elif config.action == 'report':
-    done_time_per_day = table.time_per_day(table.group_by_day(values), ['pause'])
-    expected_time_per_day = config.expectation_model.expected_time_by_date
-    result = {}
-    for date, val in done_time_per_day.items():
-        result[date] = val - expected_time_per_day[date]
-
-    for data in result.values():
-        cur_code = 32 if data.current > 0 else 31
-        sum_code = 32 if data.sum > 0 else 31
-        wrapper = lambda code, msg: f"\x1b[{code}m{sec_to_hms(msg, with_sign=False)}\x1b[m"
-        print(f"{data.date}: {wrapper(cur_code, data.current)} / {wrapper(sum_code, data.sum)}")
-
-    pause_taken_today = table.time_by_activity(span='day', moment=config.moment).get('pause', 0)
-    remaining_pause = max(0, config.expectation_model.pause - pause_taken_today)
-    print()
-    print(f"ending time: {now._offset('second', abs(data.sum - remaining_pause)).strftime('%T')}")
-
-elif config.action == 'edit':
-    table.edit(values)
-elif config.action == 'debug':
-    breakpoint()
+match config.action:
+    case 'add':
+        actions.add(table, config)
+        exit()
+    case 'see':
+        actions.see(table, config, values)
+    case 'sum':
+        actions.sum(table, config)
+    case 'report':
+        actions.report(table, config, values)
+    case 'edit':
+        actions.edit(table, values)
+    case 'debug':
+        import ipdb; ipdb.set_trace()

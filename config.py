@@ -1,6 +1,18 @@
 import os
 import cement
 import datetime
+from time_util import Moment
+
+class Config:
+    database: str
+    expectation_model: cement.MonthlyExpectations
+    activities_to_exclude: list[str]
+    filter: str
+    explode: bool
+    moment: Moment
+    version: str
+    json: bool
+    action: str
 
 config = dict(
     database="database.db",

@@ -35,9 +35,9 @@ class RecordTable(Table):
 
     def add_entry(
         self,
-        moment=None,
-        activity=None,
-        comment=None
+        moment: Moment = None,
+        activity: str = None,
+        comment: str = None
     ):
         if not moment:
             moment = Moment.now()
