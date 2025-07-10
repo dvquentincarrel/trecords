@@ -67,6 +67,7 @@ class Moment(datetime.datetime):
         for type, (pattern, builder) in MOMENT_REGEXES.items():
             if pattern.match(row):
                 return cls.strptime(builder(row), "%Y-%m-%d %H:%M:%S")
+        raise ValueError(f'"{row}" is not a valid moment')
 
     def __lt__(self, other) -> bool:
         if isinstance(other, str):

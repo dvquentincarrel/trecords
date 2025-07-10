@@ -2,7 +2,7 @@
 import os
 import sys
 try:
-    os.chdir(os.readlink(sys.argv[0]).rpartition('/')[0])
+    os.chdir(os.path.realpath(sys.argv[0]).rpartition('/')[0])
 except OSError:
     pass
 
